@@ -88,14 +88,28 @@ class App {
         try {
             // Check for critical GPU capabilities before attempting expensive init
             const gl = this.renderer.getContext();
-            const canRunGPU = (
+
+            // Check debug info for Software Renderer
+            const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+            let rendererName = "";
+            if (debugInfo) {
+                rendererName = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+            }
+
+            console.log("Detected Renderer:", rendererName);
+
+            // Detect Software Renderers (SwiftShader, Basic Render, llvmpipe, etc)
+            const isSoftware = /SwiftShader|Basic Render|Software|VMware|llvmpipe/i.test(rendererName);
+
+            // Basic Capabilities
+            const hasCaps = (
                 this.renderer.capabilities.isWebGL2 ||
                 this.renderer.extensions.get('OES_texture_float') ||
                 this.renderer.extensions.get('OES_texture_half_float')
-            ) && this.renderer.capabilities.maxVertexTextures > 0;
+            );
 
-            if (!canRunGPU) {
-                console.warn("Hardware not powerful enough for GPU Particles. Falling back to CPU.");
+            if (!hasCaps || isSoftware) {
+                console.warn("Hardware limitation detected (Software/Weak GPU). Switching to CPU Engine.");
                 useCPU = true;
             } else {
                 this.particles = new GPUParticleEngine(this.scene, this.renderer);
@@ -106,7 +120,6 @@ class App {
             console.error("GPU Engine Critical Failure:", err);
             // If GPU init crashed, destroy any partial state and fallback
             if (this.particles) {
-                // Cleanup if method exists, else just nullify
                 this.particles = null;
             }
             useCPU = true;
@@ -116,8 +129,13 @@ class App {
             import('./particles.js').then(module => {
                 console.log("Initializing CPU Fallback Engine...");
                 this.particles = new module.ParticleEngine(this.scene);
-                this.particles.setColor('#ff0055'); // Match new aesthetic
-                document.getElementById('stats').innerText = "FPS: 60 | PARTICLES: 15K (CPU)";
+                this.particles.setColor('#ff0080'); // Bright Pink/Gold
+                // Manual boost
+                if (this.particles.mesh && this.particles.mesh.material) {
+                    this.particles.mesh.material.size = 0.45;
+                }
+                const stat = document.getElementById('stats');
+                if (stat) stat.innerText = "FPS: 60 | PARTICLES: 15K (CPU MODE)";
             });
         }
 
