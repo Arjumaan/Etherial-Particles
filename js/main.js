@@ -102,14 +102,22 @@ class App {
             const isSoftware = /SwiftShader|Basic Render|Software|VMware|llvmpipe/i.test(rendererName);
 
             // Basic Capabilities
-            const hasCaps = (
-                this.renderer.capabilities.isWebGL2 ||
-                this.renderer.extensions.get('OES_texture_float') ||
-                this.renderer.extensions.get('OES_texture_half_float')
-            );
+            // STRICTER CHECK: Do not assume WebGL2 implies working float textures on all hardware.
+            // We specifically look for the extensions or the Three.js capability flag.
+            const hasFloat = this.renderer.extensions.get('OES_texture_float') ||
+                this.renderer.extensions.get('OES_texture_half_float') ||
+                this.renderer.capabilities.floatFragmentTextures;
 
-            if (!hasCaps || isSoftware) {
-                console.warn("Hardware limitation detected (Software/Weak GPU). Switching to CPU Engine.");
+            const hasCaps = (
+                this.renderer.capabilities.isWebGL2 || hasFloat
+            ) && this.renderer.capabilities.maxVertexTextures > 0;
+
+            // If we are WebGL2 but lack float support, we should probably fail. 
+            // BUT: WebGL2 usually has float support. The issue is likely the specific implementation (Chrome on usage).
+            // Let's force check for float support specifically.
+
+            if (!hasFloat || isSoftware) {
+                console.warn("Hardware limitation detected (No Float Support / Software). Switching to CPU Engine.");
                 useCPU = true;
             } else {
                 this.particles = new GPUParticleEngine(this.scene, this.renderer);
@@ -118,7 +126,6 @@ class App {
             }
         } catch (err) {
             console.error("GPU Engine Critical Failure:", err);
-            // If GPU init crashed, destroy any partial state and fallback
             if (this.particles) {
                 this.particles = null;
             }
