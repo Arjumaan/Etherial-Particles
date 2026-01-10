@@ -1,0 +1,472 @@
+:root {
+    --primary-bg: #000000;
+    --panel-bg: rgba(20, 20, 30, 0.6);
+    --text-color: #ffffff;
+    --accent-color: #00d2ff;
+    --alert-color: #ff0055;
+    --font-family: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: var(--primary-bg);
+    font-family: var(--font-family);
+    color: var(--text-color);
+    user-select: none;
+}
+
+/* Full screen canvas */
+#main-canvas {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    outline: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 0;
+    /* Just above body background (if any) */
+}
+
+/* Hidden video element for MediaPipe */
+#input_video {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: scale(-1, 1);
+}
+
+/* UI Overlay */
+#ui-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 300px;
+    background: var(--panel-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 24px;
+    border-radius: 20px;
+    box-shadow:
+        0 8px 32px 0 rgba(0, 0, 0, 0.5),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    z-index: 10;
+    transform-style: preserve-3d;
+}
+
+#ui-container:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 12px 40px 0 rgba(0, 0, 0, 0.6),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+/* Glitch Effect Class */
+.glitch {
+    position: relative;
+    color: white;
+}
+
+.glitch::before,
+.glitch::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: black;
+}
+
+.glitch::before {
+    left: 2px;
+    text-shadow: -1px 0 #00ffff;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim 5s infinite linear alternate-reverse;
+}
+
+.glitch::after {
+    left: -2px;
+    text-shadow: -1px 0 #ff0055;
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim2 5s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim {
+    0% {
+        clip: rect(42px, 9999px, 44px, 0);
+    }
+
+    5% {
+        clip: rect(12px, 9999px, 59px, 0);
+    }
+
+    10% {
+        clip: rect(48px, 9999px, 29px, 0);
+    }
+
+    15% {
+        clip: rect(42px, 9999px, 73px, 0);
+    }
+
+    20% {
+        clip: rect(63px, 9999px, 27px, 0);
+    }
+
+    100% {
+        clip: rect(34px, 9999px, 12px, 0);
+    }
+}
+
+@keyframes glitch-anim2 {
+    0% {
+        clip: rect(56px, 9999px, 12px, 0);
+    }
+
+    5% {
+        clip: rect(12px, 9999px, 34px, 0);
+    }
+
+    10% {
+        clip: rect(34px, 9999px, 56px, 0);
+    }
+
+    100% {
+        clip: rect(67px, 9999px, 12px, 0);
+    }
+}
+
+/* New Input Styles */
+#text-input-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 100;
+}
+
+#particle-text-input {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--accent-color);
+    /* Changed from --primary-color to --accent-color */
+    color: var(--accent-color);
+    /* Changed from --primary-color to --accent-color */
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-family: var(--font-family);
+    width: 200px;
+    outline: none;
+    transition: all 0.3s;
+}
+
+#particle-text-input:focus {
+    width: 250px;
+    box-shadow: 0 0 15px var(--accent-color);
+    /* Changed from --primary-color to --accent-color */
+    background: rgba(0, 0, 0, 0.8);
+}
+
+/* Stats */
+#stats {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 10px;
+}
+
+h2 {
+    margin-top: 0;
+    font-size: 1.4rem;
+    text-align: center;
+    margin-bottom: 25px;
+    letter-spacing: 3px;
+    font-weight: 300;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #fff, var(--accent-color));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 15px;
+}
+
+.control-group {
+    margin-bottom: 25px;
+}
+
+.control-group label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-color);
+}
+
+/* Buttons Grid */
+.template-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+button {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    padding: 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+    position: relative;
+    overflow: hidden;
+    font-family: inherit;
+}
+
+button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+button.active {
+    background: rgba(0, 210, 255, 0.2);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    font-weight: 600;
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.2);
+}
+
+/* Color Picker */
+.color-picker-wrapper {
+    position: relative;
+    height: 44px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    width: 150%;
+    /* Oversize to hide borders */
+    height: 150%;
+    position: absolute;
+    top: -25%;
+    left: -25%;
+    cursor: pointer;
+    background: none;
+    padding: 0;
+}
+
+/* Camera Feedback (Holo-View) */
+#cam-container {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    width: 220px;
+    height: 165px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--accent-color);
+    box-shadow: 0 0 20px rgba(0, 210, 255, 0.2);
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 20;
+    transition: all 0.3s;
+    opacity: 0.8;
+}
+
+#cam-container:hover {
+    opacity: 1;
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(0, 210, 255, 0.4);
+}
+
+#output_canvas {
+    width: 100%;
+    height: 100%;
+    transform: scale(-1, 1);
+    /* Mirror */
+    filter: contrast(1.2) saturate(0);
+    /* Cyberpunk B&W Look */
+    opacity: 0.8;
+}
+
+#cam-overlay {
+    position: absolute;
+    top: 5px;
+    left: 10px;
+    font-size: 0.7rem;
+    color: var(--accent-color);
+    font-family: monospace;
+    text-shadow: 0 0 5px var(--accent-color);
+    pointer-events: none;
+}
+
+/* Status Indicator */
+#status {
+    font-size: 0.75rem;
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-feature-settings: "tnum";
+    text-shadow: 0 0 10px rgba(0, 210, 255, 0.3);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    background-color: var(--alert-color);
+    border-radius: 50%;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.status-dot.active {
+    background-color: #00ff88;
+    box-shadow: 0 0 15px #00ff88, 0 0 5px #fff;
+    animation: signal-pulse 1s infinite;
+}
+
+@keyframes signal-pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.5);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Micro Interaction Effects */
+.hud-line {
+    position: absolute;
+    background: var(--accent-color);
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* New Controls */
+.toggle-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.toggle-btn {
+    flex: 1;
+    margin: 0 4px;
+    text-align: center;
+    font-size: 0.75rem;
+}
+
+.toggle-btn:first-child {
+    margin-left: 0;
+}
+
+.toggle-btn:last-child {
+    margin-right: 0;
+}
+
+/* Loading Overlay */
+#loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    transition: opacity 0.8s ease-in-out;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+    animation: spin 1.5s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+    margin-bottom: 25px;
+    box-shadow: 0 0 30px rgba(0, 210, 255, 0.1);
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg) scale(1);
+    }
+
+    50% {
+        transform: rotate(180deg) scale(1.1);
+    }
+
+    100% {
+        transform: rotate(360deg) scale(1);
+    }
+}
+
+#voice-indicator {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-radius: 20px;
+    border: 1px solid var(--accent-color);
+    color: var(--accent-color);
+    font-size: 0.9rem;
+    opacity: 0;
+    transition: opacity 0.3s;
+    backdrop-filter: blur(5px);
+}
+
+#voice-indicator.active {
+    opacity: 1;
+    animation: pulse-border 1.5s infinite;
+}
+
+@keyframes pulse-border {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 210, 255, 0.4);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(0, 210, 255, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 210, 255, 0);
+    }
+}
