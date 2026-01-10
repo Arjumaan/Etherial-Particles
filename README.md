@@ -1,6 +1,6 @@
 # Etherial Particles: GPU-Accelerated Gesture & Audio Reactive System
 
-![Etherial Particles](https://img.shields.io/badge/Status-Experimental-cyan) ![License](https://img.shields.io/badge/License-MIT-blue)
+![Etherial Particles](https://img.shields.io/badge/Status-Private-red) ![License](https://img.shields.io/badge/License-Proprietary-red)
 
 **Etherial Particles** is a futuristic, interactive web application that leverages **GLSL Compute Shaders (GPGPU)** to simulate **262,000+ particles** in real-time. It features advanced hand-tracking (Skeletal Tracking) and audio reactivity to create a fluid, living digital organism that responds to your physical presence and voice.
 
@@ -94,7 +94,13 @@ Etherial-Particles/
 
 ## 📜 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+**Bismillahi Rahmani Raheem.**
+
+**© 2026 Arjumaan. All Rights Reserved.**
+
+This project is the intellectual property of **Arjumaan**.
+This software is **PROPRIETARY and CONFIDENTIAL**.
+Unauthorized copying, distribution, modification, or use of this source code, via any medium, is strictly prohibited without explicit written permission from the owner.
 
 ---
 
