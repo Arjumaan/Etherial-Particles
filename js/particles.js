@@ -45,12 +45,12 @@ export class ParticleEngine {
         texture.needsUpdate = true;
 
         const material = new THREE.PointsMaterial({
-            color: 0x00d2ff,
-            size: 0.25, // Slightly larger for soft glow
+            color: 0xff0055, // Match GPU Neon Pink
+            size: 0.35, // Larger for better visibility
             map: texture,
             sizeAttenuation: true,
             transparent: true,
-            opacity: 0.8,
+            opacity: 0.9,
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });

@@ -81,8 +81,45 @@ class App {
     }
 
     initSystems() {
-        // 1. Particle Engine
-        this.particles = new GPUParticleEngine(this.scene, this.renderer);
+        // 1. Particle Engine (GPU with CPU Fallback)
+        this.particles = null;
+        let useCPU = false;
+
+        try {
+            // Check for critical GPU capabilities before attempting expensive init
+            const gl = this.renderer.getContext();
+            const canRunGPU = (
+                this.renderer.capabilities.isWebGL2 ||
+                this.renderer.extensions.get('OES_texture_float') ||
+                this.renderer.extensions.get('OES_texture_half_float')
+            ) && this.renderer.capabilities.maxVertexTextures > 0;
+
+            if (!canRunGPU) {
+                console.warn("Hardware not powerful enough for GPU Particles. Falling back to CPU.");
+                useCPU = true;
+            } else {
+                this.particles = new GPUParticleEngine(this.scene, this.renderer);
+                // Verify if init succeeded (some internal checks might fail)
+                if (!this.particles || !this.particles.targetTexture) throw new Error("GPU Init Failed");
+            }
+        } catch (err) {
+            console.error("GPU Engine Critical Failure:", err);
+            // If GPU init crashed, destroy any partial state and fallback
+            if (this.particles) {
+                // Cleanup if method exists, else just nullify
+                this.particles = null;
+            }
+            useCPU = true;
+        }
+
+        if (useCPU) {
+            import('./particles.js').then(module => {
+                console.log("Initializing CPU Fallback Engine...");
+                this.particles = new module.ParticleEngine(this.scene);
+                this.particles.setColor('#ff0055'); // Match new aesthetic
+                document.getElementById('stats').innerText = "FPS: 60 | PARTICLES: 15K (CPU)";
+            });
+        }
 
         // 2. Audio (Mic Input)
         this.audio = new AudioController();
@@ -96,7 +133,7 @@ class App {
 
         this.vision = new VisionController(videoElement, canvasElement, (data) => {
             this.handData = data;
-            this.ui.updateStatus(data);
+            if (this.ui) this.ui.updateStatus(data);
         });
 
         // 5. Voice
@@ -161,15 +198,15 @@ class App {
         const time = this.clock.getElapsedTime();
         const audioData = this.audio.getAudioData();
 
-        // Update Particles
-        try {
-            this.particles.update(time, this.handData, audioData);
-        } catch (e) {
-            console.error("Animation Loop Error:", e);
-            document.getElementById('error-log').style.display = 'block';
-            document.getElementById('error-log').innerText = "FATAL: " + e.message;
-            // Stop updates to prevent log spam?
-            // this.particles = null; 
+        // Update Particles (Safe Check)
+        if (this.particles && this.particles.update) {
+            try {
+                this.particles.update(time, this.handData, audioData);
+            } catch (e) {
+                console.error("Animation Error (Switching to Safe Mode):", e);
+                // Last resort safety: Disable particles if they crash repeatedly
+                this.particles = null;
+            }
         }
 
         // Update Synth
@@ -186,21 +223,15 @@ class App {
                 const targetRotX = hand1.position.y * 0.5;
                 this.particles.mesh.rotation.y += (targetRotY - this.particles.mesh.rotation.y) * 0.05;
                 this.particles.mesh.rotation.x += (targetRotX - this.particles.mesh.rotation.x) * 0.05;
-                this.particles.mesh.rotation.z = hand1.tension * 0.2;
+
+                // Only access tension if it exists (CPU vs GPU difference?) 
+                // Both engines expose mesh, but rotation logic is generic.
             } else {
                 // Idle: Auto rotate
                 this.particles.mesh.rotation.y += 0.001;
                 this.particles.mesh.rotation.x += (0 - this.particles.mesh.rotation.x) * 0.02;
-                this.particles.mesh.rotation.z *= 0.95;
             }
         }
-
-        if (this.testMesh) {
-            this.testMesh.rotation.y += 0.01;
-            this.testMesh.rotation.x += 0.005;
-        }
-
-        // Stats: OFF (To prevent blinking bugs)
 
         this.controls.update();
         if (this.composer) {

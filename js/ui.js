@@ -2,6 +2,26 @@ export class UIController {
     constructor(callbacks) {
         this.callbacks = callbacks; // { onShapeChange, onColorChange, onAudioToggle, onVoiceToggle }
         this.init();
+        this.showDebugInfo();
+    }
+
+    showDebugInfo() {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+        if (!gl) return;
+
+        const floatTex = gl.getExtension('OES_texture_float');
+        const halfFloatTex = gl.getExtension('OES_texture_half_float');
+
+        const info = `
+             <div style="position:fixed; bottom:10px; right:120px; color:#00aaa0; font-family:monospace; font-size:10px; text-align:right; pointer-events:none; opacity:0.7;">
+                 WebGL: ${gl.getParameter(gl.VERSION)}<br>
+                 Float: ${floatTex ? '+FLOAT' : '-NO_FLOAT'}<br>
+                 Half: ${halfFloatTex ? '+HALF' : '-NO_HALF'}<br>
+                 Agent: ${navigator.userAgent.substring(0, 30)}...
+             </div>
+         `;
+        setTimeout(() => document.body.insertAdjacentHTML('beforeend', info), 1000);
     }
 
     init() {
