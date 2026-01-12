@@ -17,100 +17,259 @@ const simulationFragmentShader = `
     
     uniform int uHandCount;
     uniform vec3 uHand1Pos;     
-    uniform int uHand1Gesture;  
+    uniform int uHand1Gesture;
     uniform vec3 uHand2Pos;
     uniform int uHand2Gesture;
     uniform float uIsClapping;
     uniform vec3 uCloudCenter;
-
+    
+    uniform float uInit;
+    
     varying vec2 vUv;
 
+    // Pseudo-random
     float rand(vec2 co){
         return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
     }
-
-    vec3 wsh(vec3 p) {
-        p *= 0.15;
-        return vec3(sin(p.z), cos(p.y), sin(p.x)); 
-    }
     
+    // Curl Noise for organic motion
     vec3 curlNoise(vec3 p) {
         const float e = 0.1;
         vec3 dx = vec3(e, 0.0, 0.0);
         vec3 dy = vec3(0.0, e, 0.0);
         vec3 dz = vec3(0.0, 0.0, e);
         
-        vec3 p_x0 = wsh(p - dx); vec3 p_x1 = wsh(p + dx);
-        vec3 p_y0 = wsh(p - dy); vec3 p_y1 = wsh(p + dy);
-        vec3 p_z0 = wsh(p - dz); vec3 p_z1 = wsh(p + dz);
+        float x = sin((p + dy).z * 0.5) - sin((p - dy).z * 0.5) - cos((p + dz).y * 0.5) + cos((p - dz).y * 0.5);
+        float y = sin((p + dz).x * 0.5) - sin((p - dz).x * 0.5) - cos((p + dx).z * 0.5) + cos((p - dx).z * 0.5);
+        float z = sin((p + dx).y * 0.5) - sin((p - dx).y * 0.5) - cos((p + dy).x * 0.5) + cos((p - dy).x * 0.5);
         
-        float x = p_y1.z - p_y0.z - p_z1.y + p_z0.y;
-        float y = p_z1.x - p_z0.x - p_x1.z + p_x0.z;
-        float z = p_x1.y - p_x0.y - p_y1.x + p_y0.x;
+        vec3 result = vec3(x, y, z);
+        float len = length(result);
+        if (len < 0.001) return vec3(0.0);
+        return result / len;
+    }
+
+    uniform int uShapeType; // 0=sphere, 1=hearts, 2=flower, 3=saturn, 4=buddha, 5=fireworks, 6=dna, 7=galaxy, 8=tornado, 9=cube, 10=torus, 11=wave
+    
+    // Emotion-based modifiers (from Python backend)
+    uniform float uEmotionSpeed;     // Speed multiplier based on emotion
+    uniform float uEmotionTurbulence; // Turbulence based on emotion
+    uniform float uBeatPulse;         // 0-1 pulse on beat
+    
+    // Procedural shape generator
+    vec3 getShapeTarget(vec2 uv, int shape) {
+        float u = uv.x * 6.28318;
+        float v = uv.y * 3.14159;
+        float idx = uv.x * 512.0 + uv.y * 512.0 * 512.0;
+        float t = uv.x + uv.y * 0.618;
         
-        return normalize(vec3(x, y, z));
+        if (shape == 0) {
+            // SPHERE
+            float r = 15.0;
+            return vec3(r * sin(v) * cos(u), r * sin(v) * sin(u), r * cos(v));
+        }
+        else if (shape == 1) {
+            // HEARTS
+            float t2 = u;
+            float x = 16.0 * pow(sin(t2), 3.0);
+            float y = 13.0 * cos(t2) - 5.0 * cos(2.0*t2) - 2.0 * cos(3.0*t2) - cos(4.0*t2);
+            float z = (rand(uv) - 0.5) * 4.0;
+            return vec3(x * 0.8, y * 0.8, z);
+        }
+        else if (shape == 2) {
+            // FLOWER (spiral)
+            float angle = idx * 0.1;
+            float r = sqrt(idx) * 0.03;
+            return vec3(r * cos(angle), r * sin(angle), (rand(uv) - 0.5) * 5.0);
+        }
+        else if (shape == 3) {
+            // SATURN (planet + ring)
+            if (rand(uv) < 0.35) {
+                float r = 6.0;
+                return vec3(r * sin(v) * cos(u), r * sin(v) * sin(u), r * cos(v));
+            } else {
+                float ang = u;
+                float dist = 10.0 + rand(uv + 0.5) * 8.0;
+                return vec3(cos(ang) * dist, (rand(uv + 0.3) - 0.5) * 0.8, sin(ang) * dist);
+            }
+        }
+        else if (shape == 4) {
+            // BUDDHA (layered rings)
+            float layer = floor(uv.y * 5.0);
+            float r = (5.0 - layer) * 2.0 + rand(uv) * 2.0;
+            float ang = u;
+            float y = layer * 3.0 - 6.0 + rand(uv + 0.1);
+            return vec3(r * cos(ang), y, r * sin(ang));
+        }
+        else if (shape == 5) {
+            // FIREWORKS (multiple bursts)
+            float burst = floor(rand(uv) * 5.0);
+            float cx = (mod(burst, 3.0) - 1.0) * 12.0;
+            float cy = (burst < 2.0 ? 1.0 : -1.0) * 8.0;
+            float r = rand(uv + 0.2) * 8.0;
+            return vec3(cx + r * sin(v) * cos(u), cy + r * sin(v) * sin(u), r * cos(v));
+        }
+        else if (shape == 6) {
+            // DNA HELIX (double helix)
+            float helixY = (uv.y - 0.5) * 30.0;
+            float helixAngle = uv.y * 20.0 + (uv.x < 0.5 ? 0.0 : 3.14159);
+            float helixR = 5.0 + sin(uv.y * 10.0) * 2.0;
+            return vec3(cos(helixAngle) * helixR, helixY, sin(helixAngle) * helixR);
+        }
+        else if (shape == 7) {
+            // GALAXY (spiral arms)
+            float arm = floor(rand(uv) * 4.0);
+            float armAngle = arm * 1.5708 + uv.y * 6.0;
+            float armDist = uv.y * 18.0 + rand(uv) * 2.0;
+            float armY = (rand(uv + 0.5) - 0.5) * 2.0;
+            return vec3(cos(armAngle) * armDist, armY, sin(armAngle) * armDist);
+        }
+        else if (shape == 8) {
+            // TORNADO (vortex)
+            float height = (uv.y - 0.5) * 25.0;
+            float vortexR = 2.0 + abs(height) * 0.4;
+            float vortexAngle = u + height * 0.3;
+            return vec3(cos(vortexAngle) * vortexR, height, sin(vortexAngle) * vortexR);
+        }
+        else if (shape == 9) {
+            // CUBE (hollow)
+            float face = floor(rand(uv) * 6.0);
+            float s = 10.0;
+            vec2 faceUV = vec2(rand(uv + 0.1), rand(uv + 0.2)) * 2.0 - 1.0;
+            if (face < 1.0) return vec3(faceUV.x * s, faceUV.y * s, s);
+            else if (face < 2.0) return vec3(faceUV.x * s, faceUV.y * s, -s);
+            else if (face < 3.0) return vec3(s, faceUV.x * s, faceUV.y * s);
+            else if (face < 4.0) return vec3(-s, faceUV.x * s, faceUV.y * s);
+            else if (face < 5.0) return vec3(faceUV.x * s, s, faceUV.y * s);
+            else return vec3(faceUV.x * s, -s, faceUV.y * s);
+        }
+        else if (shape == 10) {
+            // TORUS (donut)
+            float torusR = 12.0;
+            float tubeR = 4.0;
+            float torusU = u;
+            float torusV = v * 2.0;
+            return vec3(
+                (torusR + tubeR * cos(torusV)) * cos(torusU),
+                tubeR * sin(torusV),
+                (torusR + tubeR * cos(torusV)) * sin(torusU)
+            );
+        }
+        else if (shape == 11) {
+            // WAVE (sinusoidal surface)
+            float waveX = (uv.x - 0.5) * 30.0;
+            float waveZ = (uv.y - 0.5) * 30.0;
+            float waveY = sin(waveX * 0.5) * cos(waveZ * 0.5) * 5.0;
+            return vec3(waveX, waveY, waveZ);
+        }
+        
+        // Default: sphere
+        float r = 15.0;
+        return vec3(r * sin(v) * cos(u), r * sin(v) * sin(u), r * cos(v));
     }
 
     void main() {
         vec4 posData = texture2D(tPositions, vUv);
         vec3 pos = posData.rgb;
-        float life = posData.a; 
         
-        vec3 target = texture2D(tOrigins, vUv).rgb;
+        // Generate target procedurally based on shape type
+        vec3 target = getShapeTarget(vUv, uShapeType);
         
+        // --- INITIALIZATION ---
+        if (uInit > 0.5) {
+            // Start with sphere distribution
+            float u = vUv.x * 6.28318;
+            float v = vUv.y * 3.14159;
+            float r = 20.0 + rand(vUv) * 5.0;
+            
+            pos.x = r * sin(v) * cos(u);
+            pos.y = r * sin(v) * sin(u);
+            pos.z = r * cos(v);
+            
+            gl_FragColor = vec4(pos, 1.0);
+            return;
+        }
+
         vec3 velocity = vec3(0.0);
         
-        // 1. Return to Shape (Spring)
+        // --- PHYSICS ---
+        // 1. Spring Force to Target Shape (STRONG - shapes must form)
         vec3 toTarget = target - pos;
-        velocity += toTarget * (0.05 + 0.05 * rand(vUv)); 
+        velocity += toTarget * 0.15;
         
-        // 2. Fluid Noise (Always active)
-        vec3 noise = curlNoise(pos * 0.5 + vec3(uTime * 0.2));
-        velocity += noise * 0.3;
+        // 2. Curl Noise for organic fluid motion (SUBTLE - don't overpower spring)
+        vec3 noise = curlNoise(pos * 0.3 + vec3(uTime * 0.1));
+        velocity += noise * 0.05;
         
-        // 3. Hand Interactions
+        // 3. HAND 1 INTERACTION (Boosted radius and force)
         if (uHandCount > 0) {
-            // Hand 1
             float d1 = distance(pos, uHand1Pos);
-            vec3 dir1 = normalize(uHand1Pos - pos);
+            vec3 dir1 = normalize(pos - uHand1Pos + vec3(0.001)); // Prevent zero-length
             
-            // FIST: VORTEX GRAVITY (Black Hole)
-            if (uHand1Gesture == 1) { 
-                if (d1 < 25.0) {
-                    // Pull in
-                    velocity += dir1 * (30.0 / (d1 + 0.5)) * 1.5;
-                    // Rotate (Cross product with up vector)
-                    vec3 tan = cross(dir1, vec3(0, 1, 0));
-                    velocity += tan * (20.0 / (d1 + 1.0));
+            // FIST (1) = Attract + Swirl
+            if (uHand1Gesture == 1) {
+                if (d1 < 50.0) {
+                    velocity -= dir1 * (35.0 / (d1 + 1.0));
+                    vec3 tangent = cross(dir1, vec3(0.0, 1.0, 0.0));
+                    velocity += tangent * (20.0 / (d1 + 1.0));
                 }
             }
-            // OPEN/POINT: FORCE FIELD (Repel)
-            else if (d1 < 12.0) {
-                velocity -= dir1 * (20.0 / (d1 + 0.1));
-            }
-            
-            // Hand 2
-            if (uHandCount > 1) {
-                float d2 = distance(pos, uHand2Pos);
-                vec3 dir2 = normalize(uHand2Pos - pos);
-                if (uHand2Gesture == 1 && d2 < 25.0) {
-                     velocity += dir2 * (30.0 / (d2 + 0.5)) * 1.5;
-                } else if (d2 < 12.0) {
-                     velocity -= dir2 * (20.0 / (d2 + 0.1));
+            // VICTORY (3) = Gentle swirl only
+            else if (uHand1Gesture == 3) {
+                if (d1 < 40.0) {
+                    vec3 tangent = cross(dir1, vec3(0.0, 1.0, 0.0));
+                    velocity += tangent * (12.0 / (d1 + 1.0));
                 }
             }
-        
-            // Clap Shokwave
-            if (uIsClapping > 0.5) {
-                float dC = distance(pos, uCloudCenter);
-                if (dC < 40.0) {
-                    velocity += normalize(pos - uCloudCenter) * (150.0 / (dC + 1.0));
+            // OPEN/POINT = Repel
+            else {
+                if (d1 < 50.0) {
+                    velocity += dir1 * (50.0 / (d1 + 0.5));
                 }
             }
         }
+        
+        // 4. HAND 2 INTERACTION (Full Parity - Same boosted values)
+        if (uHandCount > 1) {
+            float d2 = distance(pos, uHand2Pos);
+            vec3 dir2 = normalize(pos - uHand2Pos + vec3(0.001));
+            
+            if (uHand2Gesture == 1) {
+                if (d2 < 50.0) {
+                    velocity -= dir2 * (35.0 / (d2 + 1.0));
+                    vec3 tangent = cross(dir2, vec3(0.0, 1.0, 0.0));
+                    velocity += tangent * (20.0 / (d2 + 1.0));
+                }
+            } else if (uHand2Gesture == 3) {
+                if (d2 < 40.0) {
+                    vec3 tangent = cross(dir2, vec3(0.0, 1.0, 0.0));
+                    velocity += tangent * (12.0 / (d2 + 1.0));
+                }
+            } else {
+                if (d2 < 50.0) {
+                    velocity += dir2 * (50.0 / (d2 + 0.5));
+                }
+            }
+        }
+        
+        // 5. CLAP SHOCKWAVE
+        if (uIsClapping > 0.5) {
+            float dC = distance(pos, uCloudCenter);
+            if (dC < 50.0) {
+                vec3 shockDir = normalize(pos - uCloudCenter);
+                velocity += shockDir * (80.0 / (dC + 1.0));
+            }
+        }
 
-        pos += velocity * uDelta * uSpeed;
-        gl_FragColor = vec4(pos, life);
+        // Apply velocity
+        pos += velocity * uSpeed * uDelta;
+        
+        // Safety: Reset if too far
+        if (length(pos) > 150.0) {
+            pos = target;
+        }
+
+        gl_FragColor = vec4(pos, 1.0);
     }
 `;
 
@@ -148,28 +307,21 @@ const renderFragmentShader = `
     uniform vec3 uColor;
     
     void main() {
-        // Circular soft particle
         vec2 coord = gl_PointCoord - vec2(0.5);
         float dist = length(coord);
         if (dist > 0.5) discard;
         
-        float glow = 1.0 - (dist * 2.0);
-        glow = pow(glow, 1.5);
+        // Soft glow falloff
+        float alpha = 1.0 - (dist * 2.0);
+        alpha = pow(alpha, 1.5);
         
-        // Incandescence based on speed
-        // uDelta is approx 0.016. Speed is velocity * delta. 
-        // vSpeed is length(diff) which is distance moved in one frame?
-        // In update loop: pos += velocity * delta.
-        // So vSpeed approx velocity * delta.
-        // During big bang, velocity is high.
+        // Slight color variation based on position for depth
+        vec3 col = uColor + vPos * 0.003;
         
-        vec3 col = uColor + vPos * 0.005; 
+        // Clamp to prevent overflow
+        col = clamp(col, 0.0, 1.0);
         
-        // Heat
-        float heat = smoothstep(0.0, 1.0, vSpeed * 2.0); // Adjust sensitivity
-        col = mix(col, vec3(1.0, 0.9, 0.5), heat); // Mix with warm gold/white
-        
-        gl_FragColor = vec4(col, glow);
+        gl_FragColor = vec4(col, alpha);
     }
 `;
 
@@ -221,42 +373,16 @@ export class GPUParticleEngine {
     }
 
     initTextures() {
-        // Detect support for Floating Point Textures
-        // Some devices (like iPhones or older GPUs) only support HalfFloat
-        if (this.renderer.capabilities.isWebGL2 === false &&
-            this.renderer.extensions.get('OES_texture_float') === null) {
-            // Fallback or HalfFloat?
-            // Try to detect half float
-            this.type = THREE.HalfFloatType;
-        } else {
-            // Default to Float if available, but check for iOS specific quirk/performance
-            // actually, checking floatFragmentTextures capability is cleaner in newer Three.js, 
-            // but let's stick to safe defaults.
-            // If uncertain, HalfFloatType is safer for compatibility.
-            // But let's look for the extension check.
-            if (this.renderer.capabilities.floatVertexTextures) {
-                this.type = THREE.FloatType;
-            } else {
-                this.type = THREE.HalfFloatType;
-            }
-        }
+        // CRITICAL: Use FloatType since we provide Float32Array data
+        // HalfFloatType requires Uint16Array with half-float encoded data
+        // FloatType is widely supported in WebGL2 and with OES_texture_float extension
+        this.type = THREE.FloatType;
 
-        // Force HalfFloat for broad compatibility if we suspect issues? 
-        // No, let's trust the capability check. 
-        // Actually, for maximum "works everywhere", HalfFloat is usually sufficient for visual particles.
-        // Let's use HalfFloatType as default if Float isn't explicitly super-supported?
-        // Let's stick to the check.
-
-        // Wait, 'isWebGL2' usually supports float textures by default but requires EXT_color_buffer_float for rendering TO them.
-        // Let's try to just check if we can render to float.
-
-        // SIMPLIFICATION: usage of HalfFloatType is almost always safe for positions in this scope.
-        // Let's check if the generic 'FloatType' caused the issue.
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        this.type = isIOS ? THREE.HalfFloatType : THREE.FloatType;
-        // Check if the renderer actually supports it
-        if (!this.renderer.extensions.get('OES_texture_float')) {
-            this.type = THREE.HalfFloatType;
+        // Check for float texture support
+        const hasFloatSupport = this.renderer.capabilities.isWebGL2 ||
+            this.renderer.extensions.get('OES_texture_float');
+        if (!hasFloatSupport) {
+            console.warn("Float textures may not be fully supported");
         }
 
         const size = this.width * this.height * 4;
@@ -287,6 +413,7 @@ export class GPUParticleEngine {
             targetData[i + 3] = 0.0;
         }
 
+        // Initialize Data Textures
         const posTexture1 = this.getDataTexture(data);
         const posTexture2 = this.getDataTexture(data);
         this.targetTexture = this.getDataTexture(targetData);
@@ -301,36 +428,51 @@ export class GPUParticleEngine {
 
         this.nextRenderTarget = this.currentRenderTarget.clone();
 
-        // Fill initial data
-        this.renderer.setRenderTarget(this.currentRenderTarget);
-        // We are skipping the initial render-to-texture from data, assuming shader handles it?
-        // NO, we must seed the simulation! 
-        // The DataTexture input is 'tPositions' for the first frame?
-        // Let's make sure the 'currentRenderTarget' has the data.
+        // SEEDING THE SIMULATION
+        // We must copy the data from posTexture1 (DataTexture) into currentRenderTarget (WebGLRenderTarget).
+        // Using MeshBasicMaterial is risky because of automatic color management/tone mapping.
+        // We use a raw ShaderMaterial to ensure exact bit-copy.
 
-        // Hack: Render the posTexture1 into currentRenderTarget using a simple copy pass?
-        // Or simpler: Just assign the data texture as the initial "read" texture in the update loop?
-        // The update loop uses 'this.currentRenderTarget.texture'. 
-        // If that is empty (black), particles spawn at 0,0,0.
-        // We MUST render the initial state.
+        const copyShaderMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                tData: { value: posTexture1 }
+            },
+            vertexShader: `
+                varying vec2 vUv;
+                void main() {
+                    vUv = uv;
+                    gl_Position = vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D tData;
+                varying vec2 vUv;
+                void main() {
+                    gl_FragColor = texture2D(tData, vUv);
+                }
+            `,
+            depthTest: false,
+            depthWrite: false
+        });
 
-        // create a quad to blit data
-        const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: posTexture1 }));
-        const cam = new THREE.Camera();
+        // Fullscreen Quad
+        const quadGeometry = new THREE.PlaneGeometry(2, 2);
+        const quad = new THREE.Mesh(quadGeometry, copyShaderMaterial);
+        const cam = new THREE.Camera(); // Identity camera
 
-        const originalTarget = this.renderer.getRenderTarget();
-
+        // Render to Current
         this.renderer.setRenderTarget(this.currentRenderTarget);
         this.renderer.render(quad, cam);
 
+        // Render to Next
         this.renderer.setRenderTarget(this.nextRenderTarget);
         this.renderer.render(quad, cam);
 
-        this.renderer.setRenderTarget(originalTarget);
+        this.renderer.setRenderTarget(null);
 
         // Cleanup temp
-        quad.geometry.dispose();
-        quad.material.dispose();
+        quadGeometry.dispose();
+        copyShaderMaterial.dispose();
     }
 
     initSimulation() {
@@ -352,6 +494,13 @@ export class GPUParticleEngine {
                 uTime: { value: 0 },
                 uDelta: { value: 0 },
                 uSpeed: { value: 2.0 },
+                uInit: { value: 1.0 },
+                uShapeType: { value: 0 },
+
+                // AI/Backend modifiers
+                uEmotionSpeed: { value: 1.0 },
+                uEmotionTurbulence: { value: 0.1 },
+                uBeatPulse: { value: 0.0 },
 
                 // Interaction
                 uHandCount: { value: 0 },
@@ -367,7 +516,7 @@ export class GPUParticleEngine {
         });
 
         this.simScene = new THREE.Scene();
-        this.simCamera = new THREE.Camera();
+        this.simCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 2);
         this.simCamera.position.z = 1;
 
         this.simMesh = new THREE.Mesh(simGeometry, this.simMaterial);
@@ -419,8 +568,8 @@ export class GPUParticleEngine {
         this.renderMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 tPositions: { value: null },
-                uPointSize: { value: 3.0 },
-                uColor: { value: new THREE.Color(0xff0055) }
+                uPointSize: { value: 6.0 }, // Increased size for visibility
+                uColor: { value: new THREE.Color(0x00ffff) }
             },
             vertexShader: renderVertexShader,
             fragmentShader: renderFragmentShader,
@@ -459,12 +608,14 @@ export class GPUParticleEngine {
                 this.simMaterial.uniforms.uHand1Gesture.value = g;
             }
 
-            // Hand 2
+            // Hand 2 - Full Gesture Parity
             if (hands.length > 1) {
                 const h2 = hands[1];
                 this.simMaterial.uniforms.uHand2Pos.value.set(h2.position.x * 20, h2.position.y * 12, 0);
                 let g = 0;
                 if (h2.gesture === 'FIST') g = 1;
+                if (h2.gesture === 'POINT') g = 2;
+                if (h2.gesture === 'VICTORY') g = 3;
                 this.simMaterial.uniforms.uHand2Gesture.value = g;
             }
 
@@ -499,6 +650,11 @@ export class GPUParticleEngine {
         this.renderer.render(this.simScene, this.simCamera);
         this.renderer.setRenderTarget(null); // Back to screen
 
+        // Disable Init AFTER successful render
+        if (this.simMaterial.uniforms.uInit.value > 0.5) {
+            this.simMaterial.uniforms.uInit.value = 0.0;
+        }
+
         // 3. Update Visuals
         this.renderMaterial.uniforms.tPositions.value = this.nextRenderTarget.texture;
 
@@ -512,55 +668,30 @@ export class GPUParticleEngine {
         this.renderMaterial.uniforms.uColor.value.set(hex);
     }
 
-    // Generate shapes by updating the TargetTexture
+    // Generate shapes by setting uShapeType uniform (procedural in shader)
     generateShape(shapeName) {
-        const data = this.targetTexture.image.data;
-        const count = this.count;
+        console.log("Generating shape:", shapeName);
 
-        // Helper to set xyz
-        const setPos = (i, x, y, z) => {
-            data[i] = x; data[i + 1] = y; data[i + 2] = z;
+        // Map shape name to shader index
+        const shapeMap = {
+            'sphere': 0,
+            'hearts': 1,
+            'flower': 2,
+            'saturn': 3,
+            'buddha': 4,
+            'fireworks': 5,
+            'dna': 6,
+            'galaxy': 7,
+            'tornado': 8,
+            'cube': 9,
+            'torus': 10,
+            'wave': 11
         };
 
-        switch (shapeName) {
-            case 'sphere':
-                for (let i = 0; i < count; i++) {
-                    const idx = i * 4;
-                    const r = 15;
-                    const theta = Math.random() * 2 * Math.PI;
-                    const phi = Math.acos(2 * Math.random() - 1);
-                    setPos(idx, r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
-                }
-                break;
-            case 'hearts':
-                for (let i = 0; i < count; i++) {
-                    const idx = i * 4;
-                    const t = Math.random() * Math.PI * 2;
-                    const s = 0.5 + Math.random() * 0.5;
-                    const x = 16 * Math.pow(Math.sin(t), 3);
-                    const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-                    const z = (Math.random() - 0.5) * 4;
-                    setPos(idx, x * 0.8, y * 0.8, z);
-                }
-                break;
-            case 'flower':
-                // Spiral flower
-                for (let i = 0; i < count; i++) {
-                    const idx = i * 4;
-                    const angle = i * 0.1; // Golden angle?
-                    const r = Math.sqrt(i) * 0.05 * (512 / Math.sqrt(count) * 2);
-                    setPos(idx, r * Math.cos(angle), r * Math.sin(angle), (Math.random() - 0.5) * 5);
-                }
-                break;
-            // Add others as fallback to random box
-            default:
-                for (let i = 0; i < count; i++) {
-                    const idx = i * 4;
-                    setPos(idx, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40);
-                }
-        }
+        const shapeIndex = shapeMap[shapeName] !== undefined ? shapeMap[shapeName] : 0;
+        this.simMaterial.uniforms.uShapeType.value = shapeIndex;
 
-        this.targetTexture.needsUpdate = true;
+        console.log("Shape type set to:", shapeIndex);
     }
 
     generateTextShape(text) {
@@ -598,5 +729,69 @@ export class GPUParticleEngine {
             data[idx + 2] = (Math.random() - 0.5) * 2;
         }
         this.targetTexture.needsUpdate = true;
+    }
+
+    // ==================
+    // AI/Backend Integration Methods
+    // ==================
+
+    /**
+     * Set emotion-based parameters from backend
+     * @param {Object} emotionData - { speed: 1.0, turbulence: 0.1 }
+     */
+    setEmotionParams(emotionData) {
+        if (emotionData.speed !== undefined) {
+            this.simMaterial.uniforms.uEmotionSpeed.value = emotionData.speed;
+        }
+        if (emotionData.turbulence !== undefined) {
+            this.simMaterial.uniforms.uEmotionTurbulence.value = emotionData.turbulence;
+        }
+    }
+
+    /**
+     * Trigger beat pulse effect
+     * @param {number} intensity - 0-1 pulse strength
+     */
+    triggerBeat(intensity = 1.0) {
+        this.simMaterial.uniforms.uBeatPulse.value = intensity;
+
+        // Pulse the point size too
+        const baseSize = this.renderMaterial.uniforms.uPointSize.value;
+        this.renderMaterial.uniforms.uPointSize.value = baseSize * (1 + intensity * 0.5);
+
+        // Decay the beat pulse
+        setTimeout(() => {
+            this.simMaterial.uniforms.uBeatPulse.value = 0;
+            this.renderMaterial.uniforms.uPointSize.value = baseSize;
+        }, 100);
+    }
+
+    /**
+     * Add body pose interaction points
+     * @param {Array} points - Array of { x, y, z, force } objects
+     */
+    setPoseInteractionPoints(points) {
+        // Use first two points as hand positions if available
+        if (points.length > 0) {
+            const p1 = points[0];
+            this.simMaterial.uniforms.uHand1Pos.value.set(p1.x, p1.y, p1.z || 0);
+            this.simMaterial.uniforms.uHand1Gesture.value = p1.force === 'attract' ? 1 : 0;
+        }
+        if (points.length > 1) {
+            const p2 = points[1];
+            this.simMaterial.uniforms.uHand2Pos.value.set(p2.x, p2.y, p2.z || 0);
+            this.simMaterial.uniforms.uHand2Gesture.value = p2.force === 'attract' ? 1 : 0;
+        }
+        this.simMaterial.uniforms.uHandCount.value = Math.min(points.length, 2);
+    }
+
+    /**
+     * Get list of all available shapes
+     */
+    getAvailableShapes() {
+        return [
+            'sphere', 'hearts', 'flower', 'saturn', 'buddha', 'fireworks',
+            'dna', 'galaxy', 'tornado', 'cube', 'torus', 'wave'
+        ];
     }
 }

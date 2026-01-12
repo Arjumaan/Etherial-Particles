@@ -129,6 +129,105 @@ export class ParticleEngine {
                     arr.push(cx + r * Math.sin(phi) * Math.cos(theta), cy + r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
                 }
                 break;
+            case 'dna':
+                // DNA Double Helix
+                for (let i = 0; i < count; i++) {
+                    const t = (i / count) * 8 * Math.PI;
+                    const y = (i / count - 0.5) * 25;
+                    const strand = i % 2 === 0 ? 0 : Math.PI; // Two strands
+                    const r = 4;
+                    const x = Math.cos(t + strand) * r;
+                    const z = Math.sin(t + strand) * r;
+                    // Add some randomness for thickness
+                    arr.push(
+                        x + (Math.random() - 0.5) * 0.8,
+                        y + (Math.random() - 0.5) * 0.5,
+                        z + (Math.random() - 0.5) * 0.8
+                    );
+                }
+                break;
+            case 'galaxy':
+                // Spiral Galaxy with arms
+                for (let i = 0; i < count; i++) {
+                    const arm = Math.floor(Math.random() * 4);
+                    const armOffset = arm * (Math.PI / 2);
+                    const dist = Math.sqrt(Math.random()) * 15;
+                    const angle = armOffset + dist * 0.5 + (Math.random() - 0.5) * 0.5;
+                    const x = Math.cos(angle) * dist;
+                    const z = Math.sin(angle) * dist;
+                    const y = (Math.random() - 0.5) * (1 + dist * 0.1);
+                    arr.push(x, y, z);
+                }
+                break;
+            case 'tornado':
+                // Tornado/Vortex
+                for (let i = 0; i < count; i++) {
+                    const t = i / count;
+                    const height = (t - 0.5) * 25;
+                    const radius = 1 + Math.abs(height) * 0.3;
+                    const angle = t * 20 * Math.PI + (Math.random() - 0.5);
+                    const x = Math.cos(angle) * radius + (Math.random() - 0.5) * 0.5;
+                    const z = Math.sin(angle) * radius + (Math.random() - 0.5) * 0.5;
+                    arr.push(x, height, z);
+                }
+                break;
+            case 'cube':
+                // Hollow Cube
+                for (let i = 0; i < count; i++) {
+                    const face = Math.floor(Math.random() * 6);
+                    const s = 8; // Size
+                    const u = (Math.random() - 0.5) * 2 * s;
+                    const v = (Math.random() - 0.5) * 2 * s;
+                    let x, y, z;
+                    switch (face) {
+                        case 0: x = s; y = u; z = v; break;     // +X
+                        case 1: x = -s; y = u; z = v; break;    // -X
+                        case 2: x = u; y = s; z = v; break;     // +Y
+                        case 3: x = u; y = -s; z = v; break;    // -Y
+                        case 4: x = u; y = v; z = s; break;     // +Z
+                        default: x = u; y = v; z = -s; break;   // -Z
+                    }
+                    arr.push(x, y, z);
+                }
+                break;
+            case 'torus':
+                // Torus (Donut)
+                for (let i = 0; i < count; i++) {
+                    const R = 10; // Major radius
+                    const r = 4;  // Minor radius
+                    const u = Math.random() * Math.PI * 2;
+                    const v = Math.random() * Math.PI * 2;
+                    const x = (R + r * Math.cos(v)) * Math.cos(u);
+                    const y = r * Math.sin(v);
+                    const z = (R + r * Math.cos(v)) * Math.sin(u);
+                    arr.push(x, y, z);
+                }
+                break;
+            case 'wave':
+                // Sinusoidal Wave Surface
+                for (let i = 0; i < count; i++) {
+                    const gridSize = Math.sqrt(count);
+                    const xi = (i % gridSize) / gridSize;
+                    const zi = Math.floor(i / gridSize) / gridSize;
+                    const x = (xi - 0.5) * 25;
+                    const z = (zi - 0.5) * 25;
+                    const y = Math.sin(x * 0.5) * Math.cos(z * 0.5) * 4;
+                    arr.push(x, y, z);
+                }
+                break;
+            case 'buddha':
+                // Lotus/Buddha - layered rings representing seated meditation form
+                for (let i = 0; i < count; i++) {
+                    const layer = Math.floor((i / count) * 5);
+                    const angle = Math.random() * Math.PI * 2;
+                    const layerHeight = layer * 2.5 - 5;
+                    const layerRadius = (5 - layer) * 2 + Math.random();
+                    const x = Math.cos(angle) * layerRadius;
+                    const y = layerHeight + Math.random() * 0.5;
+                    const z = Math.sin(angle) * layerRadius;
+                    arr.push(x, y, z);
+                }
+                break;
             default:
                 // Fallback sphere
                 for (let i = 0; i < count; i++) {
